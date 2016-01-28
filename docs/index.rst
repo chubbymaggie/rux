@@ -6,12 +6,25 @@
 Welcome to Rux's documentation!
 ===============================
 
+Rux is a L4-family microkernel implemented in Rust. As a microkernel, Rux tries
+to delegate as much work as possible to the user mode. Several things are
+implemented (or plan to be implemented) in Rux:
+
+* Resource isolation
+* Memory management
+* Task scheduling
+* Interrupts
+* Inter-process communication
+* Hardware primitives
+
 Contents:
 
 .. toctree::
    :maxdepth: 2
 
-
+   capabilities
+   scheduling
+   resources
 
 Indices and tables
 ==================

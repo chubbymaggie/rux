@@ -51,6 +51,15 @@ help:
 clean:
 	rm -rf $(BUILDDIR)/*
 
+.PHONY: livehtml
+livehtml: html
+	livereload $(BUILDDIR)/html -p 33233
+
+.PHONY: browsehtml
+browsehtml: html
+	livereload -b $(BUILDDIR)/html -p 33233
+	      "results in $(BUILDDIR)/doctest/output.txt."
+
 .PHONY: html
 html:
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
