@@ -8,7 +8,6 @@ use super::MemoryBlockCapability;
 use super::untyped::UntypedMemoryCapability;
 
 pub enum CapabilityUnion {
-
     /// Memory resources capabilities, all has its start and end address, and a
     /// next pointer to the next region (if available).
     ///
@@ -31,32 +30,47 @@ impl CapabilityUnion {
     }
 }
 
-pub struct CapabilityPool([Option<CapabilityUnion>; CAPABILITY_POOL_COUNT]);
+pub struct CapabilityPool {
+    capabilities: [Option<CapabilityUnion>; CAPABILITY_POOL_COUNT],
+    referred: bool,
+}
 
 // The main kernel capability pool is static. Other capability pools are created
 // by retype kernel page.
 
 pub struct CapabilityPoolCapability {
-    start_addr: PhysicalAddress,
-    physical_start_addr: PhysicalAddress,
-    object: Box<CapabilityPool>,
+    block_start_addr: PhysicalAddress,
+    block_size: usize,
+    page_start_addr: PhysicalAddress,
+    mapped_p4_table_addr: Option<PhysicalAddress>,
+    ptr: Option<*mut CapabilityPool>,
+}
+
+impl PageBlockCapability for CapabilityPoolCapability {
+    fn page_start_addr(&self) -> PhysicalAddress {
+        self.page_start_addr
+    }
+
+    unsafe fn set_mapped_ptr(&mut self, ptr: Option<usize>) {
+        self.ptr = ptr.and_then(|ptr| Some(ptr as *mut CapabilityPool))
+    }
+
+    unsafe fn set_mapped_p4_table_addr(&mut self, addr: Option<PhysicalAddress>) {
+        self.mapped_p4_table_addr = addr
+    }
+
+    unsafe fn mapped_p4_table_addr(&self) {
+        self.mapped_p4_table_addr
+    }
 }
 
 impl MemoryBlockCapability for CapabilityPoolCapability {
-    fn start_addr(&self) -> PhysicalAddress {
-        self.start_addr
+    fn block_start_addr(&self) -> PhysicalAddress {
+        self.block_start_addr
     }
 
-    fn size(&self) -> usize {
-        size_of::<CapabilityPool>()
-    }
-
-    fn physical_start_addr(&self) -> PhysicalAddress {
-        self.physical_start_addr
-    }
-
-    fn physical_size(&self) -> usize {
-        self.end_addr() - self.physical_start_addr()
+    fn block_size(&self) -> usize {
+        self.block_size
     }
 }
 
@@ -69,35 +83,41 @@ impl Drop for CapabilityPoolCapability {
 impl CapabilityPoolCapability {
     pub fn from_untyped(cap: UntypedMemoryCapability)
                         -> (Option<CapabilityPoolCapability>, Option<UntypedMemoryCapability>) {
-        let size = size_of::<CapabilityPool>();
-        let align = align_of::<CapabilityPool>();
-        let start_addr = cap.start_addr() + (align - cap.start_addr() % align);
-        let end_addr = start_addr + size;
+        let size = PAGE_SIZE;
+        let align = PAGE_SIZE;
+        let block_start_addr = cap.block_start_addr();
+        let page_start_addr = cap.start_addr() + (align - cap.start_addr() % align);
+        let page_end_addr = page_start_addr + size - 1;
+        let block_size = page_end_addr - cap.start_addr() + 1;
 
-        if end_addr > cap.end_addr() {
+        if page_end_addr > cap.end_addr() {
             (None, Some(cap))
         } else {
-            let pool_box = unsafe {
-                let mut pool_array: [Option<CapabilityUnion>; CAPABILITY_POOL_COUNT] = uninitialized();
+            unsafe { cap.resize(cap.block_start_addr() + block_size, cap.block_size() - block_size) };
 
-                for (i, element) in pool_array.iter_mut().enumerate() {
-                    let cap: Option<CapabilityUnion> = None;
-
-                    ptr::write(element, cap)
-                }
-
-                replace::<CapabilityPool>(&mut *(start_addr as *mut _), CapabilityPool(pool_array));
-                Box::from_raw(*(start_addr as *mut _))
+            let poolcap = CapabilityPoolCapability {
+                block_start_addr: block_start_addr,
+                block_size: block_size,
+                page_start_addr: page_start_addr,
+                mapped_p4_table_addr: None,
+                ptr: None,
             };
 
-            let pool_cap = CapabilityPoolCapability {
-                start_addr: start_addr,
-                physical_start_addr: cap.start_addr(),
-                object: pool_box,
-            };
+            poolcap.active_identity_map();
 
-            let cap = UntypedMemoryCapability::resize(cap, &pool_cap);
-            (Some(pool_cap), cap)
+            let pool = unsafe { &*self.ptr };
+            pool.referred = false;
+
+            for (i, element) in pool.iter_mut().enumerate() {
+                let cap: Option<CapabilityUnion> = None;
+                ptr::write(element, cap);
+            }
+
+            if cap.block_size() == 0 {
+                (Some(pool_cap), None)
+            } else {
+                (Some(pool_cap), Some(cap))
+            }
         }
     }
 }
