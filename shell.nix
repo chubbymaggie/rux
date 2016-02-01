@@ -9,5 +9,7 @@ stdenv.mkDerivation {
     gnumake
     binutils
     grub2
+    nasm
+    xorriso
   ];
 }
