@@ -1,25 +1,28 @@
 use common::*;
 use core::ops::Drop;
 
-use super::{MemoryBlockCapability};
+use super::{MemoryBlockPtr, MemoryBlockCapability};
+use super::UntypedCapability;
 
-/// Untyped memory and page table are memory management tricks, those are not
-/// actually accessible in the virtual memory.
-
-pub struct UntypedMemoryCapability {
-    block_start_addr: PhysicalAddress,
-    block_size: usize,
-}
-
-impl MemoryBlockCapability for UntypedMemoryCapability {
-    fn block_start_addr(&self) -> PhysicalAddress {
+impl MemoryBlockPtr for UntypedCapability {
+    fn get_block_start_addr(&self) -> PhysicalAddress {
         self.block_start_addr
     }
 
-    fn block_size(&self) -> usize {
+    fn set_block_start_addr(&self, addr: PhysicalAddress) {
+        self.block_start_addr = addr
+    }
+
+    fn get_block_size(&self) -> usize {
         self.block_size
     }
+
+    fn set_block_size(&self, size: usize) {
+        self.block_size = size
+    }
 }
+
+impl MemoryBlockCapability for UntypedMemoryCapability { }
 
 impl Drop for UntypedMemoryCapability {
     fn drop(&mut self) {
@@ -30,8 +33,8 @@ impl Drop for UntypedMemoryCapability {
 }
 
 impl UntypedMemoryCapability {
-    pub fn from_untyped_middle(cap: UntypedMemoryCapability, block_start_addr: usize, block_size: usize)
-                              -> (UntypedMemoryCapability, Option<UntypedMemoryCapability>, Option<UntypedMemoryCapability>) {
+    pub fn from_untyped_three(cap: UntypedCapability, block_start_addr: usize, block_size: usize)
+                              -> (UntypedCapability, Option<UntypedCapability>, Option<UntypedCapability>) {
         assert!(block_start_addr >= cap.block_start_addr(),
                 "Requested block start address must be after the original capability.");
         assert!(block_start_addr + block_size <= cap.block_end_addr(),
@@ -68,16 +71,11 @@ impl UntypedMemoryCapability {
         }
     }
 
-    pub fn from_untyped(cap: UntypedMemoryCapability, block_size: usize)
-                        -> (UntypedMemoryCapability, Option<UntypedMemoryCapability>) {
-        let tuple = UntypedMemoryCapability::from_untyped_middle(cap, cap.block_start_addr(), block_size);
+    pub fn from_untyped(cap: UntypedCapability, block_size: usize)
+                        -> (UntypedCapability, Option<UntypedCapability>) {
+        let tuple = UntypedCapability::from_untyped_three(cap, cap.block_start_addr(), block_size);
         assert!(tuple.2 == None, "According to logic, the third item of the tuple should be none.");
 
         (tuple.0, tuple.1)
-    }
-
-    pub unsafe fn reset(&self, block_start_addr: PhysicalAddress, block_size: usize) {
-        self.block_start_addr = block_start_addr;
-        self.block_size = block_size;
     }
 }

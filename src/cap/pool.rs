@@ -7,43 +7,9 @@ use alloc::boxed::Box;
 use super::MemoryBlockCapability;
 use super::untyped::UntypedMemoryCapability;
 
-pub enum CapabilityUnion {
-    /// Memory resources capabilities, all has its start and end address, and a
-    /// next pointer to the next region (if available).
-    ///
-    /// A memory resources capability is essentially a pointer to a memory
-    /// location.
-
-    UntypedMemory(UntypedMemoryCapability),
-    CapabilityPool(CapabilityPoolCapability),
-}
-
-impl CapabilityUnion {
-    pub fn as_untyped_memory(cap: CapabilityUnion) -> Option<UntypedMemoryCapability> {
-        if let CapabilityUnion::UntypedMemory(x) = cap
-        { Some(x) } else { None }
-    }
-
-    pub fn as_capability_pool(cap: CapabilityUnion) -> Option<CapabilityPoolCapability> {
-        if let CapabilityUnion::CapabilityPool(x) = cap
-        { Some(x) } else { None }
-    }
-}
-
 pub struct CapabilityPool {
     capabilities: [Option<CapabilityUnion>; CAPABILITY_POOL_COUNT],
     referred: bool,
-}
-
-// The main kernel capability pool is static. Other capability pools are created
-// by retype kernel page.
-
-pub struct CapabilityPoolCapability {
-    block_start_addr: PhysicalAddress,
-    block_size: usize,
-    page_start_addr: PhysicalAddress,
-    mapped_p4_table_addr: Option<PhysicalAddress>,
-    ptr: Option<*mut CapabilityPool>,
 }
 
 impl PageBlockCapability for CapabilityPoolCapability {
@@ -93,7 +59,8 @@ impl CapabilityPoolCapability {
         if page_end_addr > cap.end_addr() {
             (None, Some(cap))
         } else {
-            unsafe { cap.resize(cap.block_start_addr() + block_size, cap.block_size() - block_size) };
+            cap.block_start_addr = cap.block_start_addr + block_size;
+            cap.block_size = cap.block_size - block_size;
 
             let poolcap = CapabilityPoolCapability {
                 block_start_addr: block_start_addr,
