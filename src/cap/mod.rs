@@ -6,8 +6,6 @@ mod untyped;
 mod paging;
 mod utils;
 
-pub use self::paging::AddressCapability;
-
 //// A trait that represents all the capabilities.
 pub trait Capability { }
 
@@ -59,10 +57,6 @@ pub trait PageBlockCapability<T> : PageBlockPtr {
 
     fn page_end_addr(&self) -> PhysicalAddress {
         self.page_start_addr() + self.page_size() - 1
-    }
-
-    fn map(&self, &PageTableCapability) -> AddressCapability<T> {
-        unimplemented!();
     }
 
     fn object_size() -> usize {

@@ -4,37 +4,59 @@ pub mod entry;
 use common::*;
 use core::marker::PhantomData;
 
-pub struct AddressCapability<T> {
-    addr: VirtualAddress,
-    page_table_addr: PhysicalAddress,
+use super::PageBlockCapability;
+
+pub trait PageTableStatus { }
+pub enum ActivePageTableStatus { }
+pub enum InactivePageTableStatus { }
+
+impl PageTableStatus for ActivePageTableStatus { }
+impl PageTableStatus for InactivePageTableStatus { }
+
+pub struct PageTableCapability<L: PageTableStatus> {
+    block_start_addr: PhysicalAddress,
+    block_size: usize,
+    table_start_addr: PhysicalAddress,
+    active: PhantomData<L>,
+}
+
+pub type ActivePageTableCapability = PageTableCapability<ActivePageTableStatus>;
+pub type InactivePageTableCapability = PageTableCapability<InactivePageTableStatus>;
+
+impl<L> PageTableCapability<L> where L: PageTableStatus {
+    pub fn map<T, U>(&self, page: &T) -> VirtualAddress<U> where T: PageBlockCapability<U> {
+        unimplemented!();
+    }
+}
+
+impl ActivePageTableCapability {
+    pub fn switch(new: InactivePageTableCapability, current: ActivePageTableCapability)
+                  -> (ActivePageTableCapability, InactivePageTableCapability) {
+        unimplemented!();
+    }
+
+    pub fn borrow<'r, U>(&'r self, virt: &VirtualAddress<U>) -> &'r U {
+        assert!(virt.table_start_addr == self.table_start_addr);
+        unsafe { &*(virt.addr as *mut _) }
+    }
+
+    pub fn borrow_mut<'r, U>(&'r self, virt: &mut VirtualAddress<U>) -> &'r U {
+        assert!(virt.table_start_addr == self.table_start_addr);
+        unsafe { &mut *(virt.addr as *mut _) }
+    }
+}
+
+// WARNING: Currently it is unsafe to map one page block in one page table
+// multiple times. It is indeed safe if that is not violated.
+// TODO: Implement this.
+
+pub struct VirtualAddress<T> {
+    table_start_addr: PhysicalAddress,
+    addr: usize,
     _marker: PhantomData<T>,
 }
 
-impl<T> AddressCapability<T> {
-    pub unsafe fn new(addr: VirtualAddress, page_table_addr: PhysicalAddress) -> Self {
-        AddressCapability::<T> {
-            addr: addr,
-            page_table_addr: page_table_addr,
-            _marker: PhantomData,
-        }
-    }
-
-    pub fn is_active(&self) -> bool {
-        unsafe { ::x86::controlregs::cr3() as PhysicalAddress == self.page_table_addr }
-    }
-
-    fn borrow(&self) -> &T {
-        assert!(self.is_active());
-        unsafe { &*(self.addr as *const _) }
-    }
-
-    fn borrow_mut(&mut self) -> &mut T {
-        assert!(self.is_active());
-        unsafe { &mut *(self.addr as *mut _) }
-    }
-}
-
-impl<T> Drop for AddressCapability<T> {
+impl<T> Drop for VirtualAddress<T> {
     fn drop(&mut self) {
         unimplemented!()
     }
