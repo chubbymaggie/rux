@@ -70,7 +70,7 @@ impl SystemCallable for TCBHalf {
         match msg {
             CapSendMessage::TCBYield => unsafe {
                 log!("yielding to target tcb ...");
-                self.switch_to()
+                self.switch_to();
             }
         }
     }
@@ -83,13 +83,8 @@ impl fmt::Display for TCBHalf {
 }
 
 impl TCBHalf {
-    pub unsafe fn switch_to(&mut self) {
-        let cloned = self.clone();
-        let runtime = {
-            let tcb = self.read();
-            tcb.runtime.clone()
-        };
-        runtime.switch_to(cloned);
+    pub unsafe fn switch_to(&mut self) -> (u64, Option<u64>) {
+        self.write().runtime_mut().switch_to()
     }
 
     pub fn new(cpool: CPoolHalf,

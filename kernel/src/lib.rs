@@ -194,8 +194,17 @@ pub fn kmain(archinfo: InitInfo)
     //     });
     // }
 
-    unsafe {
-        tcb_half.switch_to();
+    log!("about to switch.");
+
+    while true {
+        let exception =
+            unsafe {
+                tcb_half.switch_to()
+            };
+        log!("runtime: {:?}", tcb_half.read().runtime());
+        log!("exception: {:?}", exception);
+
+        log!("switch returned with exception {:?}", exception);
     }
 
     tcb_half.mark_deleted();
